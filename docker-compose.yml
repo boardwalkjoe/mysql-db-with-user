@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-server
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    networks:
+      - mysql-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Example application that uses the database
+  app:
+    image: python:3.9-slim
+    container_name: mysql-manager-app
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    working_dir: /app
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_ROOT_PASSWORD: rootpassword
+    networks:
+      - mysql-network
+    command: >
+      bash -c "
+        pip install -r requirements.txt &&
+        python mysql_manager.py myapp_db myapp_user 
+          --host mysql 
+          --admin-password rootpassword
+          --verbose
+      "
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  mysql-network:
+    driver: bridge
